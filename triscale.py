@@ -364,7 +364,6 @@ def experiment_sizing(percentile,
 def analysis_metric(    data,
                         metric,
                         convergence=None,
-                        plot=False,
                         plot_out_name=None,
                         showplot=True,
                         custom_layout=None,
@@ -549,9 +548,9 @@ def analysis_metric(    data,
                     if metric['measure'] == 'mean':
                         metric_y.append(np.mean(samples_y[start_index:stop_index]))
                     elif metric['measure'] == 'minimum':
-                        metric_y.append(np.minimum(samples_y[start_index:stop_index]))
+                        metric_y.append(np.amin(samples_y[start_index:stop_index]))
                     elif metric['measure'] == 'maximum':
-                        metric_y.append(np.maximum(samples_y[start_index:stop_index]))
+                        metric_y.append(np.amax(samples_y[start_index:stop_index]))
                     else:
                         raise ValueError('Unsupported measure')
                 else:
@@ -580,12 +579,21 @@ def analysis_metric(    data,
                 # print(chunck_x, metric_x)
 
         # Convergence test
+        #is_same = np.max(np.array(metric_y)) == np.min(np.array(metric_y))
+        #if is_same:
+#       ## if np.all((np.array(metric_y) == 0)):
+         #   print("All values same are not tackled. Faking passed test")
+         #   print(np.array(metric_y))
+         #   results = {}
+         #   results[0] = True
+       # else:
+            #print(np.array(metric_y))
         results = convergence_test(np.array(metric_x),
-                                   np.array(metric_y),
-                                   metric['bounds'],
-                                   convergence['confidence'],
-                                   convergence['tolerance'],
-                                   verbose=verbose)
+                               np.array(metric_y),
+                               metric['bounds'],
+                               convergence['confidence'],
+                               convergence['tolerance'],
+                               verbose=verbose)
 
         if results[0]:
             has_converged = True
@@ -617,7 +625,7 @@ def analysis_metric(    data,
     ##
     # Plot
     ##
-    if plot:
+    if showplot or plot_out_name is not None:
         default_layout={'title' : ('%s' % metric_label),
                         'xaxis' : {'title':None},
                         'yaxis' : {'title':metric_label}}
@@ -669,7 +677,8 @@ def analysis_metric(    data,
 
 def analysis_kpi(data,
                  KPI,
-                 to_plot=None,
+                 plots=None,
+                 showplot=False,
                  plot_out_name=None,
                  custom_layout=None,
                  verbose=False):
@@ -733,7 +742,6 @@ def analysis_kpi(data,
     todo += '# ---------------------------------------------------------------- \n'
     todo += '# TODO analysis_kpi \n'
     todo += '# ---------------------------------------------------------------- \n'
-    todo += '# - default to min-max for bounds if not present \n'
     todo += '# - replance "bound" by "side" \n'
     todo += '# - update to use the newest Thompson CI function\n'
     todo += '# - return an object?\n'
@@ -774,9 +782,7 @@ def analysis_kpi(data,
                              "\t\tspecify the desired 'bound': 'lower' of 'upper'")
 
     if 'bounds' not in KPI:
-        raise ValueError(
-            """Specify the expected bounds for the metric data;
-            if bounds are unknown, use min and max values.""")
+        KPI['bounds'] = [data.min(), data.max()]
 
     # For now, we assume the inputs are correct...
     output_log = ''
@@ -787,7 +793,10 @@ def analysis_kpi(data,
     ##
     if len(data) < 2:
         weak_stationary = False
-        print("Invalid metric data (only one data point)")
+        if len(data) == 0:
+            print("Invalid metric data (no data points)")
+        else:
+            print("Invalid metric data (only one data point)")
         return weak_stationary, np.nan
 
     # Step 1: weak stationarity
@@ -850,17 +859,20 @@ def analysis_kpi(data,
     if 'name' in KPI:
         layout.update(title=KPI['name'])
 
-    if to_plot is not None and not np.isnan(KPI_CI):
+    if not np.isnan(KPI_CI) and \
+        plots is not None and \
+        (showplot is not None or plot_out_name is not None):
 
-        if 'series' in to_plot:
+        if 'series' in plots:
             figure = theil_plot(
                 np.array(data),
                 convergence_data=[weak_stationary, trend, tol],
                 )
-            figure.show()
+            if showplot:
+                figure.show()
 
-        if 'autocorr' in to_plot:
-            autocorr_plot( data )
+        if 'autocorr' in plots:
+            autocorr_plot(data, show=showplot)
 
         # KPI annotation
         note_text = "KPI: %2.2f" % sorted_data[KPI_CI]
@@ -878,12 +890,13 @@ def analysis_kpi(data,
 
         if custom_layout is not None:
             layout.update(custom_layout)
-        if not np.isnan(KPI_CI):
-            if 'horizontal' in to_plot:
-                figure = ThompsonCI_plot( data, [LB,UB], KPI['bound'], 'horizontal', layout, out_name=plot_out_name)
+        if 'horizontal' in plots:
+            figure = ThompsonCI_plot( data, [LB,UB], KPI['bound'], 'horizontal', layout, out_name=plot_out_name)
+            if showplot:
                 figure.show()
-            if 'vertical' in to_plot:
-                figure = ThompsonCI_plot( data, [LB,UB], KPI['bound'], 'vertical', layout, out_name=plot_out_name)
+        if 'vertical' in plots:
+            figure = ThompsonCI_plot( data, [LB,UB], KPI['bound'], 'vertical', layout, out_name=plot_out_name)
+            if showplot:
                 figure.show()
 
     ##
