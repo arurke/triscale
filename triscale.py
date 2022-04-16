@@ -579,26 +579,27 @@ def analysis_metric(    data,
                 # print(chunck_x, metric_x)
 
         # Convergence test
-        #is_same = np.max(np.array(metric_y)) == np.min(np.array(metric_y))
-        #if is_same:
-#       ## if np.all((np.array(metric_y) == 0)):
-         #   print("All values same are not tackled. Faking passed test")
-         #   print(np.array(metric_y))
-         #   results = {}
-         #   results[0] = True
-       # else:
+        bounds_equal = metric['bounds'][0] == metric['bounds'][1]
+        data_equal = np.all(np.array(metric_y) == metric_y[0])
+        if data_equal and bounds_equal:
+            #print("All values same are not tackled. Faking passed metric test")
             #print(np.array(metric_y))
-        results = convergence_test(np.array(metric_x),
-                               np.array(metric_y),
-                               metric['bounds'],
-                               convergence['confidence'],
-                               convergence['tolerance'],
-                               verbose=verbose)
-
-        if results[0]:
+            results = None
             has_converged = True
+            #results[0] = True
         else:
-            has_converged = False
+            #print(np.array(metric_y))
+            results = convergence_test(np.array(metric_x),
+                                   np.array(metric_y),
+                                   metric['bounds'],
+                                   convergence['confidence'],
+                                   convergence['tolerance'],
+                                   verbose=verbose)
+
+            if results[0]:
+                has_converged = True
+            else:
+                has_converged = False
 
         # Produce the output string
         if verbose:
@@ -799,12 +800,35 @@ def analysis_kpi(data,
             print("Invalid metric data (only one data point)")
         return weak_stationary, np.nan
 
+    # Check if sufficient data
+    
+    ## Work with lower-percentiles (Fetched from above)
+    #if KPI['percentile'] > 50:
+    #    wk_perc = 100 - KPI['percentile']
+    #else:
+    #    wk_perc = KPI['percentile']
+    #N_one, N_two = min_number_samples(wk_perc, KPI['confidence'], robustness=0)
+    #if len(data) < N_one:
+    #    output_log += ("Too few data points. Have %d, need %d" % (len(data), N_one))
+    #    print("asd")
+    #    print("asd")
+    #    print("asd")
+    #    print("asd")
+    #    return False, np.nan
+
     # Step 1: weak stationarity
-    weak_stationary, trend, tol = convergence_test(np.arange(len(data)),
-                                       np.array(data),
-                                       KPI['bounds'],
-                                       50,
-                                       10)
+    bounds_equal = KPI['bounds'][0] == KPI['bounds'][1]
+    if bounds_equal:
+        print("All run values same are not tackled. Faking passed KPI test")
+        print(data)
+        weak_stationary = True
+        # TODO trend and tol is not set
+    else:
+        weak_stationary, trend, tol = convergence_test(np.arange(len(data)),
+                                           np.array(data),
+                                           KPI['bounds'],
+                                           50,
+                                           10)
 
     # Step 2: independence
     stationary = independence_test(data)
@@ -818,7 +842,7 @@ def analysis_kpi(data,
     #     autocorr_plot( data )
     #
     #     wait = input("PRESS ENTER TO CONTINUE.")
-
+    stationary_res = stationary
     stationary = (stationary and weak_stationary)
 
     if stationary:
@@ -833,6 +857,12 @@ def analysis_kpi(data,
             output_log += ('(but maybe you want to double-check that the data is really constant...)\n')
         else:
             output_log += ('Data appears NOT I.D.D. !\n')
+            if not weak_stationary:
+                output_log += ('Failed convergence-test! ')
+                output_log += ('Bounds: ' + str(KPI['bounds']) + ', ')
+                output_log += ('Trend: ' + str(trend) + ', tolerance: ' + str(tol) + '\n')
+            if not stationary_res:
+                output_log += ('Failed independence-test!\n')
             output_log += ('Analysis continues but results are not trustworthy...')
 
     if verbose:
